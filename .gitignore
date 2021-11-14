@@ -1,2 +1,4 @@
 /.bsp/
 target/
+/src/main/resources/input.x64
+/src/main/resources/input.exe
