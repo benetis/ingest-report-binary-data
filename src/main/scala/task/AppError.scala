@@ -18,6 +18,10 @@ case class ExecuteBinaryError(throwable: Throwable) extends AppError {
   override def msg(): String = throwable.messageAndStacktrace()
 }
 
+case class HttpServerError(throwable: Throwable) extends AppError {
+  override def msg(): String = throwable.messageAndStacktrace()
+}
+
 object ErrorUtils {
   implicit class ThrowableExt(throwable: Throwable) {
 

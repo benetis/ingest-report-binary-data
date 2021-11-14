@@ -1,40 +1,36 @@
 package task
 
 import zio._
-import zio.Console._
-import zio.stream._
-import ErrorUtils._
-import java.lang.{Runtime => JavaRuntime}
+import zhttp.http._
+import zhttp.service.Server
+import zio.console._
 
-object MyApp extends ZIOAppDefault {
+object MyApp extends zio.App {
 
-  def run = program.catchSome { case err: AppError =>
-    printLine(err.getClass) *> printLine(err.msg())
-  }
+  type Count = Int
+  type AppState = Ref[Map[EventType, Count]]
 
-  val binaryPath = Task(getClass.getResource("/input.exe").getPath)
-    .mapError(BinaryPathError)
+  val routes = (state: AppState) =>
+    Http.collectM[Request] { case Method.GET -> Root / "count" =>
+      state.get
+        .map(s => Response.text(s.toString()))
+    }
 
-  val program =
-    for {
-      _ <- printLine("===== Starting to ingest the input =====")
-      ps <- process
-      _ <- transform(ps).run(ZSink.foreach(in => {
-        printLine(in)
-      }))
-    } yield ()
+  val httpApp = (state: AppState) =>
+    Server.start(8090, routes(state)).mapError(HttpServerError)
 
-  def transform(process: Process) =
-    ZStream
-      .fromInputStream(process.getInputStream)
-      .via(ZPipeline.utf8Decode)
-      .via(ZPipeline.splitLines)
+  val wholeProgram = for {
+    state <- Ref.make(Map.empty[EventType, Count])
+    _ <- PipelineInput
+      .ingestPipelineProgram(state)
+      .catchSome { case err: AppError =>
+        putStrLn(err.getClass.getName) *> putStrLn(err.msg())
+      }
+      .fork
+    startHttpApp <- httpApp(state).forkDaemon
+    _ <- startHttpApp.join
+  } yield ()
 
-  val process =
-    for {
-      runtime <- Task(JavaRuntime.getRuntime).mapError(GetRuntimeError)
-      path <- binaryPath
-      exec <- Task(runtime.exec(path)).mapError(ExecuteBinaryError)
-    } yield exec
+  def run(args: List[String]) = wholeProgram.exitCode
 
 }
