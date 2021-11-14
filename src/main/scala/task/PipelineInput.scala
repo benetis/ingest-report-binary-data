@@ -4,9 +4,10 @@ import play.api.libs.json.{JsError, JsResult, JsSuccess, Json}
 import zio._
 import zio.console.putStrLn
 import zio.stream.{ZSink, ZStream, ZTransducer}
+
 import java.lang.{Runtime => JavaRuntime}
 import JsonCodecs._
-import task.MyApp.AppState
+import task.MyApp.{AppState, WordCount}
 import cats.implicits._
 
 object PipelineInput {
@@ -29,6 +30,7 @@ object PipelineInput {
         val chunkIO = ingest(ps)
           .mapM(parseJson)
           .collect { case JsSuccess(value, _) => value }
+          .tap(e => putStrLn(s"$e"))
           .grouped(3)
           .mapM(chunk => updateMap(state, chunk))
           .run(ZSink.drain)
@@ -44,10 +46,14 @@ object PipelineInput {
 
   private def updateMap(state: AppState, chunk: Chunk[OneEvent]) = {
     val toUpdate =
-      chunk.groupBy(_.eventType).map { case (k, v) => (k, v.size) }
+      chunk.groupBy(_.eventType).map { case (k, v) => (k, chunkToWordCount(v)) }
 
     /* Merge two maps */
     state.update(old => old.combine(toUpdate))
+  }
+
+  private def chunkToWordCount(chunk: Chunk[OneEvent]): WordCount = {
+    chunk.map(_.data).groupBy(identity).view.mapValues(_.size).toMap
   }
 
   private def parseJson(
