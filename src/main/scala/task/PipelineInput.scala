@@ -31,7 +31,6 @@ object PipelineInput {
         val chunkIO = ingest(ps)
           .mapM(parseJson)
           .collect { case JsSuccess(value, _) => value }
-          .tap(e => putStrLn(s"$e"))
           .grouped(3)
           .mapM(chunk => updateMap(state, chunk))
           .run(ZSink.drain)
