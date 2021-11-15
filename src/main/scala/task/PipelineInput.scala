@@ -9,10 +9,11 @@ import java.lang.{Runtime => JavaRuntime}
 import JsonCodecs._
 import task.MyApp.{AppState, WordCount}
 import cats.implicits._
+import java.io.File
 
 object PipelineInput {
 
-  val binaryPath = Task(getClass.getResource("/input.exe").getPath)
+  val binaryPath = Task(new File("src/main/resources/input.x64").getPath)
     .mapError(BinaryPathError)
 
   val process: ZManaged[Any, AppError, Process] = ZManaged
